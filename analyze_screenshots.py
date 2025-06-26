@@ -8,7 +8,7 @@ from transformers import CLIPProcessor, CLIPModel
 # Finds all text written in image and logs it
 def text_from_image(file, image_path):
     text = pytesseract.image_to_string(Image.open(image_path))
-    file.write(text)
+    file.write(f"Text from image:\n{text}")
 
 
 # Logs total number of faces in image
@@ -17,7 +17,7 @@ def face_recognition(file, image_path):
     image = face_recognition.load_image_file(image_path)
     # Logs length of array (total faces in image)
     face_number = len(face_recognition.face_locations(image))
-    file.write(str(face_number))
+    file.write(f"Total amount of faces:\n{face_number}")
 
 
 def general_object_detection(file, image_path):
@@ -38,12 +38,12 @@ def general_object_detection(file, image_path):
     # Adds object in set if model confidence score > 0.2
     seen = set()
     for i in range(detections.shape[2]):
-        if detections[0, 0, i, 2] > 0.2:
+        if detections[0, 0, i, 2] > 0.5:
             idx = int(detections[0, 0, i, 1])
             seen.add(CLASSES[idx])
 
     # Logs list of seen objects
-    file.write(list(seen))
+    file.write(f"Objects Detected:\n{list(seen)}")
 
 
 def directed_object_detection(file, image_path):
@@ -63,8 +63,8 @@ def directed_object_detection(file, image_path):
 
     # Logs all confidence scores and model output
     for label, prob in zip(labels, probs[0]):
-        print(f"{label}: {prob.item():.4f}")
-    file.write("Prediction:", labels[probs.argmax()])
+        file.write(f"{label}: {prob.item():.4f}")
+    file.write(f"Prediction Statistics:\n{labels[probs.argmax()]}")
 
 
 # Replace with logging file path and image path
