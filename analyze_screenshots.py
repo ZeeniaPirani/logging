@@ -6,21 +6,21 @@ import torch
 from transformers import CLIPProcessor, CLIPModel
 
 # Finds all text written in image and logs it
-def text_from_image(image_path):
+def text_from_image(file, image_path):
     text = pytesseract.image_to_string(Image.open(image_path))
-    f.write(text)
+    file.write(text)
 
 
 # Logs total number of faces in image
-def face_recognition(image_path):
+def face_recognition(file, image_path):
     # Runs face detection model, returns an array of all faces
     image = face_recognition.load_image_file(image_path)
     # Logs length of array (total faces in image)
     face_number = len(face_recognition.face_locations(image))
-    f.write(str(face_number))
+    file.write(str(face_number))
 
 
-def general_object_detection(image_path):
+def general_object_detection(file, image_path):
     # Loads pre-trained model and reads image
     net = cv2.dnn.readNetFromCaffe("MobileNetSSD_deploy.prototxt", "MobileNetSSD_deploy.caffemodel")
     image = cv2.imread(image_path)
@@ -43,10 +43,10 @@ def general_object_detection(image_path):
             seen.add(CLASSES[idx])
 
     # Logs list of seen objects
-    f.write(list(seen))
+    file.write(list(seen))
 
 
-def directed_object_detection(image_path):
+def directed_object_detection(file, image_path):
     # Uses pretrained CLIP model to process image
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -64,7 +64,7 @@ def directed_object_detection(image_path):
     # Logs all confidence scores and model output
     for label, prob in zip(labels, probs[0]):
         print(f"{label}: {prob.item():.4f}")
-    f.write("Prediction:", labels[probs.argmax()])
+    file.write("Prediction:", labels[probs.argmax()])
 
 
 # Replace with logging file path and image path
@@ -72,10 +72,10 @@ log_file = "logging.txt"
 path = ""
 
 with open(log_file, 'a') as f:
-    text_from_image(path)
+    text_from_image(f, path)
 
-    face_recognition(path)
+    face_recognition(f, path)
 
-    general_object_detection(path)
+    general_object_detection(f, path)
 
-    directed_object_detection(path)
+    directed_object_detection(f, path)
