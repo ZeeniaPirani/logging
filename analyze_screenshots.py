@@ -1,23 +1,22 @@
 from PIL import Image
-import pytesseract
-import face_recognition
+import easyocr
+from face_recognition import load_image_file, face_locations
 import cv2
 import torch
 from transformers import CLIPProcessor, CLIPModel
 
 # Finds all text written in image and logs it
 def text_from_image(file, image_path):
-    text = pytesseract.image_to_string(Image.open(image_path))
-    file.write(f"Text from image:\n{text}")
-
+    result = reader.readtext(image_path, detail=0)
+    file.write(f"Text from image:\n{result}\n")
 
 # Logs total number of faces in image
 def face_recognition(file, image_path):
     # Runs face detection model, returns an array of all faces
-    image = face_recognition.load_image_file(image_path)
+    image = load_image_file(image_path)
     # Logs length of array (total faces in image)
-    face_number = len(face_recognition.face_locations(image))
-    file.write(f"Total amount of faces:\n{face_number}")
+    face_number = len(face_locations(image))
+    file.write(f"\nTotal amount of faces:\n{face_number}\n")
 
 
 def general_object_detection(file, image_path):
@@ -43,7 +42,7 @@ def general_object_detection(file, image_path):
             seen.add(CLASSES[idx])
 
     # Logs list of seen objects
-    file.write(f"Objects Detected:\n{list(seen)}")
+    file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
 
 
 def directed_object_detection(file, image_path):
@@ -63,8 +62,8 @@ def directed_object_detection(file, image_path):
 
     # Logs all confidence scores and model output
     for label, prob in zip(labels, probs[0]):
-        file.write(f"{label}: {prob.item():.4f}")
-    file.write(f"Prediction Statistics:\n{labels[probs.argmax()]}")
+        file.write(f"{label}: {prob.item():.4f} ")
+    file.write(f"\nFinal Prediction: {labels[probs.argmax()]}")
 
 
 # Replace with logging file path and image path
@@ -72,6 +71,7 @@ log_file = "logging.txt"
 path = ""
 
 with open(log_file, 'a') as f:
+    reader = easyocr.Reader(['en'])
     text_from_image(f, path)
 
     face_recognition(f, path)
