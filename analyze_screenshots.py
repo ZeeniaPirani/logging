@@ -35,7 +35,7 @@ def general_object_detection(file, image_path):
             "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike",
             "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
 
-    # Adds object in set if model confidence score > 0.2
+    # Adds object in set if model confidence score > 0.5
     seen = set()
     for i in range(detections.shape[2]):
         if detections[0, 0, i, 2] > 0.5:
