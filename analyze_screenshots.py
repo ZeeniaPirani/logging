@@ -6,11 +6,13 @@ import torch
 from transformers import CLIPProcessor, CLIPModel
 import time
 import json
+import numpy as np
+import argparse
 
 # Finds all text written in image and logs it
-def text_from_image(file, image_path):
+def text_from_image(logging_file_name, image_path):
     result = reader.readtext(image_path, detail=0)
-    file.write(f"Text from image:\n{result}\n")
+    logging_file_name.write(f"Text from image:\n{result}\n")
 
     # Creates new JSON object with value of image text, indents for easy readability
     data = {"image_text": result}
@@ -18,20 +20,20 @@ def text_from_image(file, image_path):
     return text_json
 
 # Logs total number of faces in image
-def face_recognition(file, image_path):
-    # Runs face detection model, returns an array of all faces
-    image = load_image_file(image_path)
-    # Logs length of array (total faces in image)
-    face_number = len(face_locations(image))
-    file.write(f"\nTotal amount of faces:\n{face_number}\n")
+# def face_recognition(file, image_path):
+#     # Runs face detection model, returns an array of all faces
+#     image = load_image_file(image_path)
+#     # Logs length of array (total faces in image)
+#     face_number = len(face_locations(image))
+#     file.write(f"\nTotal amount of faces:\n{face_number}\n")
 
-    # Creates new JSON object with amount of faces in image
-    data = {"amount_faces": face_number}
-    face_json = json.dumps(data, indent=4)
-    return face_json
+#     # Creates new JSON object with amount of faces in image
+#     data = {"amount_faces": face_number}
+#     face_json = json.dumps(data, indent=4)
+#     return face_json
 
 
-def general_object_detection(file, image_path):
+def general_object_detection(logging_file_name, image_path):
     # Try-except to avoid errors with MobileNetSSD files
     try:
         # Loads pre-trained model and reads image
@@ -56,7 +58,7 @@ def general_object_detection(file, image_path):
                 seen.add(CLASSES[idx])
 
         # Logs list of seen objects
-        file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
+        logging_file_name.write(f"\nObjects Detected:\n{list(seen)}\n\n")
 
         # JSON object with list of all objects seen
         data = {"general_objects_detected": list(seen)}
@@ -68,7 +70,7 @@ def general_object_detection(file, image_path):
         print("Error with MobileNetSSD files - download from https://github.com/ZeeniaPirani/logging and move to project file folder")
 
 
-def directed_object_detection(file, image_path):
+def directed_object_detection(logging_file_name, image_path):
     # Uses pretrained CLIP model to process image
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -85,8 +87,8 @@ def directed_object_detection(file, image_path):
 
     # Logs all confidence scores and model output
     for label, prob in zip(labels, probs[0]):
-        file.write(f"{label}: {prob.item():.4f} ")
-    file.write(f"\nFinal Prediction: {labels[probs.argmax()]}")
+        logging_file_name.write(f"{label}: {prob.item():.4f} ")
+    logging_file_name.write(f"\nFinal Prediction: {labels[probs.argmax()]}\n\n")
 
     # Returns JSON of most likely label
     data = {"direct_object_final": labels[probs.argmax()]}
@@ -94,11 +96,51 @@ def directed_object_detection(file, image_path):
     return directed_od_json
 
 
-# Takes user input for screenshot
-path = input("Enter file path for screenshot file: ")
+def color_histogram(logging_file_name, image_path):
+    image = cv2.imread(image_path)
+    blue_color = cv2.calcHist([image], [0], None, [128], [0, 256]).flatten().tolist()
+    green_color = cv2.calcHist([image], [1], None, [128], [0, 256]).flatten().tolist()
+    red_color = cv2.calcHist([image], [2], None, [128], [0, 256]).flatten().tolist()
 
- # Creates a new logging.txt in project directory
-with open("logging.txt", 'w') as f:
+    histogram = {
+        "blue":blue_color,
+        "green":green_color,
+        "red":red_color
+    }
+
+    color_histogram_json = json.dumps(histogram, indent=4)
+    logging_file_name.write(color_histogram_json)
+
+    return color_histogram_json
+
+
+def brightness_histogram(logging_file_name, image_path):
+    image = cv2.imread(image_path)
+    image = image.astype(np.float32)
+
+    B, G, R = cv2.split(image)
+
+    luminance = 0.299*R + 0.587*G + 0.114*B
+    hist = cv2.calcHist([luminance.astype(np.uint8)], [0], None, [128], [0, 256])
+
+    data = {"luminance_histogram" : hist.flatten().tolist()}
+
+    luminance_histogram_json = json.dumps(data, indent=4)
+    logging_file_name.write(luminance_histogram_json)
+
+    return luminance_histogram_json
+
+
+parser = argparse.ArgumentParser(description="Analyze a screenshot.")
+parser.add_argument("image1", type=str, help="Path to screenshot")
+parser.add_argument("output_file", type=str, help="Path to output file")
+
+args = parser.parse_args()
+
+path = args.image1
+output = args.output_file
+
+with open(output, 'w') as logging_file:
     # Uses try-except when working with user input - catches errors if input isn't in project directory
     try:        
         reader = easyocr.Reader(['en'])
@@ -109,41 +151,61 @@ with open("logging.txt", 'w') as f:
 
         # Outputs current step in console, creates new key-value pair with detected text
         print("Starting text extraction...")
-        all_data["text"] = text_from_image(f, path)
+        all_data["text"] = text_from_image(logging_file, path)
 
         # Outputs time taken for text extraction to console
         text_extraction_time = time.time() 
         print(f"Text extraction time: {(text_extraction_time - start_time):.5f}\n")
 
+
         # Outputs current step, creates new key-value pair for amount of detected faces
-        print("Starting face recognition...")
-        all_data["face"] = face_recognition(f, path)
+        # print("Starting face recognition...")
+        # all_data["face"] = face_recognition(f, path)
 
         # Prints total amount of time taken for face recognition
         face_recognition_time = time.time()
         print(f"Face recognition time: {(face_recognition_time - text_extraction_time):.5f}\n")
 
+
         # Prints current process, new pair in JSON with list of all objects detected
         print("Starting general object detection...")
-        all_data["general"] = general_object_detection(f, path)
+        all_data["general"] = general_object_detection(logging_file, path)
 
         # Outputs time taken for general object detection
         general_od_time = time.time()
         print(f"General Object Detection Time: {(general_od_time - face_recognition_time):.5f}\n")
 
+
         # Creates new key-value pair for directed object detection
         print("Starting directed object detection...")
-        all_data["directed"] = directed_object_detection(f, path)
+        all_data["directed"] = directed_object_detection(logging_file, path)
 
         # Outputs time taken
         directed_od_time = time.time()
         print(f"Directed Object Detection Time: {(directed_od_time - general_od_time):.5f}\n")
 
+
+        # Creates new key-value pair for color histogram values
+        print("Creating color histogram")
+        all_data["color_histogram"] = color_histogram(logging_file, path)
+
+        # Outputs time taken (not sure if needed)
+        color_histogram_time = time.time()
+        print(f"Color Histogram Time: {(color_histogram_time - directed_od_time):.5f}\n")
+        
+
+        # Creates new JSON entry for brightness histogram
+        print("Creating luminance histogram")
+        all_data["brightness_histogram"] = brightness_histogram(logging_file, path)
+        
+        brightness_histogram_time = time.time()
+        print(f"Brightness Histogram Time: {(brightness_histogram_time - color_histogram_time):.5f}\n")
+
         # Final JSON object with all data
         complete_json = json.dumps(all_data, indent=4)
 
         # Prints total runtime for all four functions
-        print(f"Total Runtime: {(directed_od_time - start_time):0.5f}")
+        print(f"Total Runtime: {(brightness_histogram_time - start_time):0.5f}")
 
     # If screenshot file not found, prints error message
     except FileNotFoundError:
