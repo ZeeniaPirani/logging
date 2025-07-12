@@ -10,9 +10,9 @@ import numpy as np
 import argparse
 
 # Finds all text written in image and logs it
-def text_from_image(logging_file_name, image_path):
+def text_from_image(log_file, image_path):
     result = reader.readtext(image_path, detail=0)
-    logging_file_name.write(f"Text from image:\n{result}\n")
+    log_file.write(f"Text from image:\n{result}\n")
 
     # Creates new JSON object with value of image text, indents for easy readability
     data = {"image_text": result}
@@ -33,7 +33,7 @@ def text_from_image(logging_file_name, image_path):
 #     return face_json
 
 
-def general_object_detection(logging_file_name, image_path):
+def general_object_detection(log_file, image_path):
     # Try-except to avoid errors with MobileNetSSD files
     try:
         # Loads pre-trained model and reads image
@@ -58,7 +58,7 @@ def general_object_detection(logging_file_name, image_path):
                 seen.add(CLASSES[idx])
 
         # Logs list of seen objects
-        logging_file_name.write(f"\nObjects Detected:\n{list(seen)}\n\n")
+        log_file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
 
         # JSON object with list of all objects seen
         data = {"general_objects_detected": list(seen)}
@@ -70,7 +70,7 @@ def general_object_detection(logging_file_name, image_path):
         print("Error with MobileNetSSD files - download from https://github.com/ZeeniaPirani/logging and move to project file folder")
 
 
-def directed_object_detection(logging_file_name, image_path):
+def directed_object_detection(log_file, image_path):
     # Uses pretrained CLIP model to process image
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -87,8 +87,8 @@ def directed_object_detection(logging_file_name, image_path):
 
     # Logs all confidence scores and model output
     for label, prob in zip(labels, probs[0]):
-        logging_file_name.write(f"{label}: {prob.item():.4f} ")
-    logging_file_name.write(f"\nFinal Prediction: {labels[probs.argmax()]}\n\n")
+        log_file.write(f"{label}: {prob.item():.4f} ")
+    log_file.write(f"\nFinal Prediction: {labels[probs.argmax()]}\n\n")
 
     # Returns JSON of most likely label
     data = {"direct_object_final": labels[probs.argmax()]}
@@ -96,7 +96,7 @@ def directed_object_detection(logging_file_name, image_path):
     return directed_od_json
 
 
-def color_histogram(logging_file_name, image_path):
+def color_histogram(log_file, image_path):
     image = cv2.imread(image_path)
     blue_color = cv2.calcHist([image], [0], None, [128], [0, 256]).flatten().tolist()
     green_color = cv2.calcHist([image], [1], None, [128], [0, 256]).flatten().tolist()
@@ -109,12 +109,12 @@ def color_histogram(logging_file_name, image_path):
     }
 
     color_histogram_json = json.dumps(histogram, indent=4)
-    logging_file_name.write(color_histogram_json)
+    log_file.write(color_histogram_json)
 
     return color_histogram_json
 
 
-def brightness_histogram(logging_file_name, image_path):
+def brightness_histogram(log_file, image_path):
     image = cv2.imread(image_path)
     image = image.astype(np.float32)
 
@@ -126,18 +126,62 @@ def brightness_histogram(logging_file_name, image_path):
     data = {"luminance_histogram" : hist.flatten().tolist()}
 
     luminance_histogram_json = json.dumps(data, indent=4)
-    logging_file_name.write(luminance_histogram_json)
+    log_file.write(luminance_histogram_json)
 
     return luminance_histogram_json
 
 
-parser = argparse.ArgumentParser(description="Analyze a screenshot.")
-parser.add_argument("image1", type=str, help="Path to screenshot")
+def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
+    img1 = cv2.imread(screenshot_1)
+    img2 = cv2.imread(screenshot_2)
+
+    if img1.shape != img2.shape:
+        print("Screenshots are different sizes")
+        return
+    
+    difference = cv2.absdiff(img1, img2)
+
+    if len(difference.shape) == 3:
+        diff_mask = np.any(difference > 0, axis=2)
+        num_different_pixels = np.sum(diff_mask)
+    else:
+        num_different_pixels = cv2.countNonZero(difference)
+    
+    data = {"pixel_difference":int(num_different_pixels)}
+    pixel_difference_json = json.dumps(data, indent=4)
+    log_file.write(pixel_difference_json)
+
+    return pixel_difference_json
+
+def calculate_rgb_difference(log_file, screenshot_1, screenshot_2):
+    img1 = Image.open(screenshot_1).convert('RGB')
+    img2 = Image.open(screenshot_2).convert('RGB')
+
+    if img1.size != img2.size:
+        print("Screenshots are different sizes")
+        return
+
+    arr1 = np.array(img1, dtype=np.int16)
+    arr2 = np.array(img2, dtype=np.int16)
+
+    diff_array = np.abs(arr1-arr2)
+    total_rgb_difference = int(np.sum(diff_array))
+   
+    data = {"rgb_difference":total_rgb_difference}
+    rgb_difference_json = json.dumps(data, indent=4)
+    log_file.write(rgb_difference_json)
+
+    return rgb_difference_json
+
+parser = argparse.ArgumentParser(description="Analyze and compute the difference between two screenshots.")
+parser.add_argument("image1", type=str, help="Path to first screenshot")
+parser.add_argument("image2", type=str, help="Path to second screenshot")
 parser.add_argument("output_file", type=str, help="Path to output file")
 
 args = parser.parse_args()
 
-path = args.image1
+imagePath1 = args.image1
+imagePath2 = args.image2
 output = args.output_file
 
 with open(output, 'w') as logging_file:
@@ -151,7 +195,7 @@ with open(output, 'w') as logging_file:
 
         # Outputs current step in console, creates new key-value pair with detected text
         print("Starting text extraction...")
-        all_data["text"] = text_from_image(logging_file, path)
+        all_data["text"] = text_from_image(logging_file, imagePath1)
 
         # Outputs time taken for text extraction to console
         text_extraction_time = time.time() 
@@ -169,7 +213,7 @@ with open(output, 'w') as logging_file:
 
         # Prints current process, new pair in JSON with list of all objects detected
         print("Starting general object detection...")
-        all_data["general"] = general_object_detection(logging_file, path)
+        all_data["general"] = general_object_detection(logging_file, imagePath1)
 
         # Outputs time taken for general object detection
         general_od_time = time.time()
@@ -178,7 +222,7 @@ with open(output, 'w') as logging_file:
 
         # Creates new key-value pair for directed object detection
         print("Starting directed object detection...")
-        all_data["directed"] = directed_object_detection(logging_file, path)
+        all_data["directed"] = directed_object_detection(logging_file, imagePath1)
 
         # Outputs time taken
         directed_od_time = time.time()
@@ -187,7 +231,7 @@ with open(output, 'w') as logging_file:
 
         # Creates new key-value pair for color histogram values
         print("Creating color histogram")
-        all_data["color_histogram"] = color_histogram(logging_file, path)
+        all_data["color_histogram"] = color_histogram(logging_file, imagePath1)
 
         # Outputs time taken (not sure if needed)
         color_histogram_time = time.time()
@@ -196,16 +240,30 @@ with open(output, 'w') as logging_file:
 
         # Creates new JSON entry for brightness histogram
         print("Creating luminance histogram")
-        all_data["brightness_histogram"] = brightness_histogram(logging_file, path)
+        all_data["brightness_histogram"] = brightness_histogram(logging_file, imagePath1)
         
         brightness_histogram_time = time.time()
         print(f"Brightness Histogram Time: {(brightness_histogram_time - color_histogram_time):.5f}\n")
+
+
+        print("Computing difference between two screenshots")
+        all_data["pixel_difference"] = calculate_pixel_difference(logging_file, imagePath1, imagePath2)
+
+        pixel_difference_time = time.time()
+        print(f"Computing Difference Time: {(pixel_difference_time - brightness_histogram_time):.5f}\n")
+
+
+        print("Computing RGB difference between two screenshots")
+        all_data["rgb_difference"] = calculate_rgb_difference(logging_file, imagePath1, imagePath2)
+
+        rgb_difference_time = time.time()
+        print(f"RGB Difference Time: {(rgb_difference_time - pixel_difference_time):.5f}")
 
         # Final JSON object with all data
         complete_json = json.dumps(all_data, indent=4)
 
         # Prints total runtime for all four functions
-        print(f"Total Runtime: {(brightness_histogram_time - start_time):0.5f}")
+        print(f"Total Runtime: {(pixel_difference_time - start_time):0.5f}\n")
 
     # If screenshot file not found, prints error message
     except FileNotFoundError:
