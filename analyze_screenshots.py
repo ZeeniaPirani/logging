@@ -97,17 +97,20 @@ def directed_object_detection(log_file, image_path):
 
 
 def color_histogram(log_file, image_path):
+    # Reads image and computes separate color histograms for blue, green, and red channels
     image = cv2.imread(image_path)
     blue_color = cv2.calcHist([image], [0], None, [128], [0, 256]).flatten().tolist()
     green_color = cv2.calcHist([image], [1], None, [128], [0, 256]).flatten().tolist()
     red_color = cv2.calcHist([image], [2], None, [128], [0, 256]).flatten().tolist()
 
+    # Stores each histogram in dictionary
     histogram = {
         "blue":blue_color,
         "green":green_color,
         "red":red_color
     }
 
+    # Converts histogram dictionary to JSON and logs result
     color_histogram_json = json.dumps(histogram, indent=4)
     log_file.write(color_histogram_json)
 
@@ -115,14 +118,18 @@ def color_histogram(log_file, image_path):
 
 
 def brightness_histogram(log_file, image_path):
+    # Reads image and converts to float for brightness calculation
     image = cv2.imread(image_path)
     image = image.astype(np.float32)
 
+    # Splits image into RGB channels and calculates luminance using formula
     B, G, R = cv2.split(image)
-
     luminance = 0.299*R + 0.587*G + 0.114*B
-    hist = cv2.calcHist([luminance.astype(np.uint8)], [0], None, [128], [0, 256])
 
+    # Computes histogram for brightness/luminance values
+    hist = cv2.calcHist([luminance.astype(np.uint8)], [0], None, [128], [0, 256])
+    
+    # Converts result to JSON and logs
     data = {"luminance_histogram" : hist.flatten().tolist()}
 
     luminance_histogram_json = json.dumps(data, indent=4)
@@ -132,21 +139,26 @@ def brightness_histogram(log_file, image_path):
 
 
 def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
+    # Loads both screenshots using OpenCV
     img1 = cv2.imread(screenshot_1)
     img2 = cv2.imread(screenshot_2)
 
+    # Ensures both screenshots are the same size
     if img1.shape != img2.shape:
         print("Screenshots are different sizes")
         return
     
+    # Calculates absolute pixel difference between screenshots
     difference = cv2.absdiff(img1, img2)
 
+    # Counts number of pixels that differ (different for RGB and grayscale)
     if len(difference.shape) == 3:
         diff_mask = np.any(difference > 0, axis=2)
         num_different_pixels = np.sum(diff_mask)
     else:
         num_different_pixels = cv2.countNonZero(difference)
-    
+
+    # Logs number of different pixels
     data = {"pixel_difference":int(num_different_pixels)}
     pixel_difference_json = json.dumps(data, indent=4)
     log_file.write(pixel_difference_json)
@@ -154,19 +166,24 @@ def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
     return pixel_difference_json
 
 def calculate_rgb_difference(log_file, screenshot_1, screenshot_2):
+    # Opens both screenshots and converts to RGB format
     img1 = Image.open(screenshot_1).convert('RGB')
     img2 = Image.open(screenshot_2).convert('RGB')
 
+    # Ensures both images are the same size
     if img1.size != img2.size:
         print("Screenshots are different sizes")
         return
 
+    # Converts both images to numpy arrays for numerical difference calculation
     arr1 = np.array(img1, dtype=np.int16)
     arr2 = np.array(img2, dtype=np.int16)
 
+    # Computes absolute RGB difference and sums all pixel-wise differences
     diff_array = np.abs(arr1-arr2)
     total_rgb_difference = int(np.sum(diff_array))
    
+    # Logs total RGB difference
     data = {"rgb_difference":total_rgb_difference}
     rgb_difference_json = json.dumps(data, indent=4)
     log_file.write(rgb_difference_json)
