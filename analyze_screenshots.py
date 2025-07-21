@@ -14,7 +14,6 @@ def text_from_image(log_file, image_path):
     result = reader.readtext(image_path, detail=0)
     log_file.write(f"Text from image:\n{result}\n")
 
-    # Creates new JSON object with value of image text, indents for easy readability
     data = {"image_text": result}
     text_json = json.dumps(data, indent=4)
     return text_json
@@ -32,20 +31,20 @@ def text_from_image(log_file, image_path):
 #     face_json = json.dumps(data, indent=4)
 #     return face_json
 
-
+# Runs general object detection on image, tries to detect a wide variety of object categories from image
 def general_object_detection(log_file, image_path):
-    # Try-except to avoid errors with MobileNetSSD files
+    # Try-except to avoid errors with MobileNetSSD files (such as files not existing, in wrong directory, or wrong name)
     try:
-        # Loads pre-trained model and reads image
+        # Loads pre-trained neural network model with Caffe models
         net = cv2.dnn.readNetFromCaffe("MobileNetSSD_deploy.prototxt", "MobileNetSSD_deploy.caffemodel")
         image = cv2.imread(image_path)
 
-        # Changes image to proper format
+        # Changes image to a blob, which is a preprocessed input suitable for CNNs
         blob = cv2.dnn.blobFromImage(image, 0.007843, (300, 300), 127.5)
         net.setInput(blob)
         detections = net.forward()
 
-        # All classes that model can detect
+        # All classes which object detection model compares blob to
         CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus",
             "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike",
             "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
@@ -57,10 +56,8 @@ def general_object_detection(log_file, image_path):
                 idx = int(detections[0, 0, i, 1])
                 seen.add(CLASSES[idx])
 
-        # Logs list of seen objects
         log_file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
 
-        # JSON object with list of all objects seen
         data = {"general_objects_detected": list(seen)}
         general_od_json = json.dumps(data, indent=4)
         return general_od_json
@@ -70,8 +67,10 @@ def general_object_detection(log_file, image_path):
         print("Error with MobileNetSSD files - download from https://github.com/ZeeniaPirani/logging and move to project file folder")
 
 
+# Runs directed object detection on image, aims to detect smaller set of specific object categories
 def directed_object_detection(log_file, image_path):
-    # Uses pretrained CLIP model to process image
+    # Uses pretrained CLIP (Contrastive Language-Image Pre-training) model to process image, associates images and text
+    # Can use for directed object detection, finds most likely text match for image
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
@@ -79,10 +78,14 @@ def directed_object_detection(log_file, image_path):
     # Possible labels for each image, model returns a confidence score for each label
     labels = ["video game","website", "movie", "desktop"]
 
+    # Uses Hugging Face processor object to prepare text inputs and image for passing in to CLIP model
     inputs = processor(text=labels, images=image, return_tensors="pt", padding=True)
 
+    # Disables gradient calculation, model has already been trained (weights don't change)
     with torch.no_grad():
         outputs = model(**inputs)
+
+        # Takes unnormalized scores (from logits_per_image) and transforms into probability with softmax 
         probs = outputs.logits_per_image.softmax(dim=1)  # shape: [1, 4]
 
     # Logs all confidence scores and model output
@@ -96,14 +99,14 @@ def directed_object_detection(log_file, image_path):
     return directed_od_json
 
 
+# Computes and logs a histogram of each color from image
 def color_histogram(log_file, image_path):
-    # Reads image and computes separate color histograms for blue, green, and red channels
+    # Reads image and computes separate color histograms for blue, green, and red channels for easier logging
     image = cv2.imread(image_path)
     blue_color = cv2.calcHist([image], [0], None, [128], [0, 256]).flatten().tolist()
     green_color = cv2.calcHist([image], [1], None, [128], [0, 256]).flatten().tolist()
     red_color = cv2.calcHist([image], [2], None, [128], [0, 256]).flatten().tolist()
 
-    # Stores each histogram in dictionary
     histogram = {
         "blue":blue_color,
         "green":green_color,
@@ -117,8 +120,9 @@ def color_histogram(log_file, image_path):
     return color_histogram_json
 
 
+# Creates and logs histogram of image luminance
 def brightness_histogram(log_file, image_path):
-    # Reads image and converts to float for brightness calculation
+    # Reads image and converts to float for brightness calculations
     image = cv2.imread(image_path)
     image = image.astype(np.float32)
 
@@ -138,12 +142,12 @@ def brightness_histogram(log_file, image_path):
     return luminance_histogram_json
 
 
+# Logs total number of pixels that differ between two screenshots
 def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
-    # Loads both screenshots using OpenCV
     img1 = cv2.imread(screenshot_1)
     img2 = cv2.imread(screenshot_2)
 
-    # Ensures both screenshots are the same size
+    # Ensures both screenshots are the same size, needed to calculate difference
     if img1.shape != img2.shape:
         print("Screenshots are different sizes")
         return
@@ -151,11 +155,15 @@ def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
     # Calculates absolute pixel difference between screenshots
     difference = cv2.absdiff(img1, img2)
 
+
     # Counts number of pixels that differ (different for RGB and grayscale)
     if len(difference.shape) == 3:
+        # If difference shape = 3, image is colored
+        # Mask over image is created and all differing pixels from third axis are summed
         diff_mask = np.any(difference > 0, axis=2)
         num_different_pixels = np.sum(diff_mask)
     else:
+        # Means image is grayscale, counts all different pixels with openCV's countNonZero method
         num_different_pixels = cv2.countNonZero(difference)
 
     # Logs number of different pixels
@@ -165,12 +173,14 @@ def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
 
     return pixel_difference_json
 
+
+# Logs total RGB difference between two screenshots
 def calculate_rgb_difference(log_file, screenshot_1, screenshot_2):
-    # Opens both screenshots and converts to RGB format
+    # Converts both screenshots to RGB format for comparison
     img1 = Image.open(screenshot_1).convert('RGB')
     img2 = Image.open(screenshot_2).convert('RGB')
 
-    # Ensures both images are the same size
+    # Ensures both images are the same size, prints message if images are different
     if img1.size != img2.size:
         print("Screenshots are different sizes")
         return
@@ -190,11 +200,13 @@ def calculate_rgb_difference(log_file, screenshot_1, screenshot_2):
 
     return rgb_difference_json
 
+# Uses ArgumentParser to take command line arguments for logging file + two screenshots
 parser = argparse.ArgumentParser(description="Analyze and compute the difference between two screenshots.")
 parser.add_argument("image1", type=str, help="Path to first screenshot")
 parser.add_argument("image2", type=str, help="Path to second screenshot")
 parser.add_argument("output_file", type=str, help="Path to output file")
 
+# Converts to arguments to set values of variables
 args = parser.parse_args()
 
 imagePath1 = args.image1
@@ -214,7 +226,6 @@ with open(output, 'w') as logging_file:
         print("Starting text extraction...")
         all_data["text"] = text_from_image(logging_file, imagePath1)
 
-        # Outputs time taken for text extraction to console
         text_extraction_time = time.time() 
         print(f"Text extraction time: {(text_extraction_time - start_time):.5f}\n")
 
@@ -223,30 +234,24 @@ with open(output, 'w') as logging_file:
         # print("Starting face recognition...")
         # all_data["face"] = face_recognition(f, path)
 
-        # Prints total amount of time taken for face recognition
         face_recognition_time = time.time()
         print(f"Face recognition time: {(face_recognition_time - text_extraction_time):.5f}\n")
 
 
-        # Prints current process, new pair in JSON with list of all objects detected
         print("Starting general object detection...")
         all_data["general"] = general_object_detection(logging_file, imagePath1)
 
-        # Outputs time taken for general object detection
         general_od_time = time.time()
         print(f"General Object Detection Time: {(general_od_time - face_recognition_time):.5f}\n")
 
 
-        # Creates new key-value pair for directed object detection
         print("Starting directed object detection...")
         all_data["directed"] = directed_object_detection(logging_file, imagePath1)
 
-        # Outputs time taken
         directed_od_time = time.time()
         print(f"Directed Object Detection Time: {(directed_od_time - general_od_time):.5f}\n")
 
 
-        # Creates new key-value pair for color histogram values
         print("Creating color histogram")
         all_data["color_histogram"] = color_histogram(logging_file, imagePath1)
 
@@ -255,7 +260,6 @@ with open(output, 'w') as logging_file:
         print(f"Color Histogram Time: {(color_histogram_time - directed_od_time):.5f}\n")
         
 
-        # Creates new JSON entry for brightness histogram
         print("Creating luminance histogram")
         all_data["brightness_histogram"] = brightness_histogram(logging_file, imagePath1)
         
