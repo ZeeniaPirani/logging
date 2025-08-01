@@ -12,11 +12,10 @@ import argparse
 # Finds all text written in image and logs it
 def text_from_image(log_file, image_path):
     result = reader.readtext(image_path, detail=0)
-    log_file.write(f"Text from image:\n{result}\n")
+    # log_file.write(f"Text from image:\n{result}\n")
 
-    data = {"image_text": result}
-    text_json = json.dumps(data, indent=4)
-    return text_json
+    text_data = {"image_text": result}
+    return text_data
 
 # Logs total number of faces in image
 # def face_recognition(file, image_path):
@@ -56,11 +55,10 @@ def general_object_detection(log_file, image_path):
                 idx = int(detections[0, 0, i, 1])
                 seen.add(CLASSES[idx])
 
-        log_file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
+        # log_file.write(f"\nObjects Detected:\n{list(seen)}\n\n")
 
-        data = {"general_objects_detected": list(seen)}
-        general_od_json = json.dumps(data, indent=4)
-        return general_od_json
+        general_od_data = {"general_objects_detected": list(seen)}
+        return general_od_data
 
     # Prints error message if issue with MobileNetSSD files
     except cv2.error:
@@ -89,14 +87,13 @@ def directed_object_detection(log_file, image_path):
         probs = outputs.logits_per_image.softmax(dim=1)  # shape: [1, 4]
 
     # Logs all confidence scores and model output
-    for label, prob in zip(labels, probs[0]):
-        log_file.write(f"{label}: {prob.item():.4f} ")
-    log_file.write(f"\nFinal Prediction: {labels[probs.argmax()]}\n\n")
+    # for label, prob in zip(labels, probs[0]):
+    #     log_file.write(f"{label}: {prob.item():.4f} ")
+    # log_file.write(f"\nFinal Prediction: {labels[probs.argmax()]}\n\n")
 
     # Returns JSON of most likely label
-    data = {"direct_object_final": labels[probs.argmax()]}
-    directed_od_json = json.dumps(data, indent=4)
-    return directed_od_json
+    directed_od_data = {"direct_object_final": labels[probs.argmax()]}
+    return directed_od_data
 
 
 # Computes and logs a histogram of each color from image
@@ -107,17 +104,13 @@ def color_histogram(log_file, image_path):
     green_color = cv2.calcHist([image], [1], None, [128], [0, 256]).flatten().tolist()
     red_color = cv2.calcHist([image], [2], None, [128], [0, 256]).flatten().tolist()
 
-    histogram = {
+    color_histogram = {
         "blue":blue_color,
         "green":green_color,
         "red":red_color
     }
 
-    # Converts histogram dictionary to JSON and logs result
-    color_histogram_json = json.dumps(histogram, indent=4)
-    log_file.write(color_histogram_json)
-
-    return color_histogram_json
+    return color_histogram
 
 
 # Creates and logs histogram of image luminance
@@ -134,12 +127,8 @@ def brightness_histogram(log_file, image_path):
     hist = cv2.calcHist([luminance.astype(np.uint8)], [0], None, [128], [0, 256])
     
     # Converts result to JSON and logs
-    data = {"luminance_histogram" : hist.flatten().tolist()}
-
-    luminance_histogram_json = json.dumps(data, indent=4)
-    log_file.write(luminance_histogram_json)
-
-    return luminance_histogram_json
+    luminance_data = {"luminance_histogram" : hist.flatten().tolist()}
+    return luminance_data
 
 
 # Logs total number of pixels that differ between two screenshots
@@ -167,11 +156,8 @@ def calculate_pixel_difference(log_file, screenshot_1, screenshot_2):
         num_different_pixels = cv2.countNonZero(difference)
 
     # Logs number of different pixels
-    data = {"pixel_difference":int(num_different_pixels)}
-    pixel_difference_json = json.dumps(data, indent=4)
-    log_file.write(pixel_difference_json)
-
-    return pixel_difference_json
+    pixel_diff_data = {"pixel_difference":int(num_different_pixels)}
+    return pixel_diff_data
 
 
 # Logs total RGB difference between two screenshots
@@ -194,11 +180,8 @@ def calculate_rgb_difference(log_file, screenshot_1, screenshot_2):
     total_rgb_difference = int(np.sum(diff_array))
    
     # Logs total RGB difference
-    data = {"rgb_difference":total_rgb_difference}
-    rgb_difference_json = json.dumps(data, indent=4)
-    log_file.write(rgb_difference_json)
-
-    return rgb_difference_json
+    rgb_diff_data = {"rgb_difference":total_rgb_difference}
+    return rgb_diff_data
 
 # Uses ArgumentParser to take command line arguments for logging file + two screenshots
 parser = argparse.ArgumentParser(description="Analyze and compute the difference between two screenshots.")
@@ -281,7 +264,7 @@ with open(output, 'w') as logging_file:
         print(f"RGB Difference Time: {(rgb_difference_time - pixel_difference_time):.5f}")
 
         # Final JSON object with all data
-        complete_json = json.dumps(all_data, indent=4)
+        json.dump(all_data, logging_file, indent=4)
 
         # Prints total runtime for all four functions
         print(f"Total Runtime: {(pixel_difference_time - start_time):0.5f}\n")
